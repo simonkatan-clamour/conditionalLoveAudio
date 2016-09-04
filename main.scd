@@ -41,14 +41,14 @@ SynthDef(\pedalTone, {|scidx = 1, freq = 25, phase = 0, pan = 0, tFreq = 0.05, w
 
 	var wamp, swell, wobble, out;
 
-	swell = SinOsc.kr(tFreq,phase,0.5,0.5);
+	swell = LFTri.kr(tFreq,phase,0.5,0.2);
 	Poll.kr(Impulse.kr(10), swell, \pedal , scidx);
-	wobble = SinOsc.kr(wFreq,0,freq/40);
+	wobble = SinOsc.kr(wFreq,0, min(5,freq/40));
 	wamp = SinOsc.kr(wampF,0,0.2,0.3);
-	out = VarSaw.ar(freq, 0, wamp, swell);
+	out = VarSaw.ar(freq + wobble, 0, wamp, swell);
 	out = out * 0.8 + RHPF.ar(out, fFreq, 0.02, 0.2);
 	out = Pan2.ar(out, pan) * amp;
-	out = out * EnvGen.kr(Env.asr(4,1,0.01,'sine'),gate, doneAction:2);
+	out = out * EnvGen.kr(Env.asr(1,1,0.01,'sine'),gate, doneAction:2);
 	Out.ar(0, out);
 
 }).send(s);
@@ -151,7 +151,7 @@ OSCdef(\blob, {|msg|
 ~pollNode = OSCFunc(
 {
 	arg msg;
-	~vizNode.sendMsg("/poll", msg[2], msg[3]);
+	~vizNode.sendMsg("/poll", msg[2], msg[3].abs);
 },
 '/tr', s.addr);
 
@@ -166,13 +166,13 @@ OSCdef(\addTone, {|msg|
 	x = Synth.head(~toneSynths, \pedalTone, [
 		\scidx, dict.at(\scidx),
 		\phase, dict.at(\phase),
-		\freq, rrand(100,500),
+		\freq, rrand(20.0, 72.0).midicps,
 		\tFreq, dict.at(\freq),
-		\wFreq, rrand(4,14),
+		\wFreq, rrand(15,20),
 		\wampF, 0.2,
 		\fFreq, rrand(1000,2000),
-		\pan, rrand(-1,1),
-		\amp, rrand(0.1,0.5)
+		\pan, dict.at(\pan),
+		\amp, 0.1
 
 	]);
 
