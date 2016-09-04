@@ -22,33 +22,20 @@ SynthDef.new(\simplePlayOnceMono, {|bufNum, loop = 0, trig = 1, rate = 1, pos = 
 	Out.ar(outbus, sig);
 }).send(s);
 
-SynthDef(\playWithTone, {|v_amp = 0.5, s_amp = 0.1, bufNum = 0, pan = 0, freq = 200, noiseFreq = 30, trig = 1 |
-
-	var sig, p_sig, t_sig, bDur;
-
-	p_sig = PlayBuf.ar(1, bufNum);
-	t_sig = LFPar.ar(freq, mul:0.5) * LFNoise0.ar(noiseFreq);
-
-	sig = Pan2.ar((p_sig * v_amp) + (t_sig * s_amp), pan);
-
-	sig = sig * EnvGen.kr(Env.asr(releaseTime: 0.01),trig, doneAction:2);
-	Out.ar(0,sig);
-
-
-}).send(s);
 
 SynthDef(\pedalTone, {|scidx = 1, freq = 25, phase = 0, pan = 0, tFreq = 0.05, wFreq = 4, wampF = 0.2, fFreq = 1000, amp = 0.1, gate = 1|
 
-	var wamp, swell, wobble, out;
+	var wamp, swell, wobble, out, lamp;
 
 	swell = LFTri.kr(tFreq,phase,0.5,0.2);
-	Poll.kr(Impulse.kr(10), swell, \pedal , scidx);
+	lamp = Lag3.kr(amp, 10);
+	Poll.kr(Impulse.kr(10), swell * lamp, \pedal , scidx);
 	wobble = SinOsc.kr(wFreq,0, min(5,freq/40));
 	wamp = SinOsc.kr(wampF,0,0.2,0.3);
 	out = VarSaw.ar(freq + wobble, 0, wamp, swell);
 	out = out * 0.8 + RHPF.ar(out, fFreq, 0.02, 0.2);
-	out = Pan2.ar(out, pan) * amp;
-	out = out * EnvGen.kr(Env.asr(1,1,0.01,'sine'),gate, doneAction:2);
+	out = Pan2.ar(out, pan) * lamp;
+	out = out * EnvGen.kr(Env.asr(0.1,1,0.01,'sine'),gate, doneAction:2);
 	Out.ar(0, out);
 
 }).send(s);
@@ -99,6 +86,8 @@ dp.folders.do{|v|
 
 ////////////////////////////OSC////////////////////////////////
 (
+
+~toneRefs = ();
 
 ~toneSynths.free;
 ~toneSynths = Group.new;
@@ -159,9 +148,11 @@ OSCdef(\addTone).free;
 OSCdef(\addTone, {|msg|
 
 
-	var dict = ~packageMessage.value(msg);
+	var id, dict = ~packageMessage.value(msg);
 
 	dict.postln;
+
+	id = ("synth_" + dict.at(\scidx)).asSymbol;
 
 	x = Synth.head(~toneSynths, \pedalTone, [
 		\scidx, dict.at(\scidx),
@@ -176,7 +167,22 @@ OSCdef(\addTone, {|msg|
 
 	]);
 
+
+	~toneRefs.put(id, x);
+
+
 }, '/addTone');
+
+OSCdef(\updateTone).free;
+OSCdef(\updateTone, {|msg|
+
+
+	var id, dict = ~packageMessage.value(msg);
+	id = ("synth_" + dict.at(\scidx)).asSymbol;
+
+	~toneRefs.at(id).set(\amp, dict.at(\amp).asFloat);
+
+}, '/updateTone');
 
 
 
@@ -189,6 +195,13 @@ OSCdef(\allOff, {|msg|
 
 
 )
+
+~toneRefs.at("1").set(\amp, 0.5);
+~toneRefs.put(\test, "hdhjdhjd")
+~toneRefs.at(\1)
+
+~toneRefs.at(("synth_" + 1).asSymbol).set(\amp, 0.5)
+
 
 
 
