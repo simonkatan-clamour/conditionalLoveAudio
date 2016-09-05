@@ -23,18 +23,19 @@ SynthDef.new(\simplePlayOnceMono, {|bufNum, loop = 0, trig = 1, rate = 1, pos = 
 }).send(s);
 
 
-SynthDef(\pedalTone, {|scidx = 1, freq = 25, phase = 0, pan = 0, tFreq = 0.05, wFreq = 4, wampF = 0.2, fFreq = 1000, amp = 0.1, gate = 1|
+SynthDef(\pedalTone, {|scidx = 1, freq = 25, phase = 3, pan = 0, tFreq = 0.05, wFreq = 4, wampF = 0.2, fFreq = 1000, amp = 0.0, gate = 1|
 
-	var wamp, swell, wobble, out, lamp;
+	var wamp, swell, wobble, out, lamp, xamp;
 
-	swell = LFTri.kr(tFreq,phase,0.5,0.2);
-	lamp = Lag3.kr(amp, 10);
+	swell = LFTri.kr(tFreq,phase,0.5,0.5);
+	lamp = Lag3.kr(amp , 10);
+	xamp = (-35 + (lamp * 25)).dbamp;
 	Poll.kr(Impulse.kr(10), swell * lamp, \pedal , scidx);
 	wobble = SinOsc.kr(wFreq,0, min(5,freq/40));
 	wamp = SinOsc.kr(wampF,0,0.2,0.3);
 	out = VarSaw.ar(freq + wobble, 0, wamp, swell);
 	out = out * 0.8 + RHPF.ar(out, fFreq, 0.02, 0.2);
-	out = Pan2.ar(out, pan) * lamp;
+	out = Pan2.ar(out, pan) * xamp;
 	out = out * EnvGen.kr(Env.asr(0.1,1,0.01,'sine'),gate, doneAction:2);
 	Out.ar(0, out);
 
@@ -108,8 +109,8 @@ dp.folders.do{|v|
 
 
 
-OSCdef(\blob).free;  // unregister OSCdef
-OSCdef(\blob, {|msg|
+OSCdef(\splat).free;  // unregister OSCdef
+OSCdef(\splat, {|msg|
 
 	//var txt = msg[1], voice = msg[2], amp = msg[3].asFloat, pan = msg[4].asFloat;
 
@@ -130,7 +131,7 @@ OSCdef(\blob, {|msg|
 	x = Synth.new(\simplePlayOnceMono, [\bufNum, b , \pan, 0, \amp, 1.0 ]);
 
 
-}, '/blob');
+}, '/splat');
 
 
 
@@ -156,7 +157,6 @@ OSCdef(\addTone, {|msg|
 
 	x = Synth.head(~toneSynths, \pedalTone, [
 		\scidx, dict.at(\scidx),
-		\phase, dict.at(\phase),
 		\freq, rrand(20.0, 72.0).midicps,
 		\tFreq, dict.at(\freq),
 		\wFreq, rrand(15,20),
@@ -177,8 +177,11 @@ OSCdef(\updateTone).free;
 OSCdef(\updateTone, {|msg|
 
 
-	var id, dict = ~packageMessage.value(msg);
+
+	var amp, id, dict = ~packageMessage.value(msg);
 	id = ("synth_" + dict.at(\scidx)).asSymbol;
+
+
 
 	~toneRefs.at(id).set(\amp, dict.at(\amp).asFloat);
 
@@ -196,11 +199,6 @@ OSCdef(\allOff, {|msg|
 
 )
 
-~toneRefs.at("1").set(\amp, 0.5);
-~toneRefs.put(\test, "hdhjdhjd")
-~toneRefs.at(\1)
-
-~toneRefs.at(("synth_" + 1).asSymbol).set(\amp, 0.5)
 
 
 
