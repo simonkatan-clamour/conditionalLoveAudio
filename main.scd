@@ -1,3 +1,6 @@
+x = {PinkNoise.ar([0.2,0.2])}.play;
+x.free;
+
 NetAddr.langPort;
 
 (
@@ -22,6 +25,16 @@ SynthDef.new(\simplePlayOnceMono, {|bufNum, loop = 0, trig = 1, rate = 1, pos = 
 	Out.ar(outbus, sig);
 }).send(s);
 
+
+SynthDef.new(\simplePlayOnceStereo, {|bufNum, loop = 0, trig = 1, rate = 1, pos = 0, amp = 1, pan = 0, outbus = 0|
+
+	var sig;
+
+	sig = PlayBuf.ar(2, bufNum, rate: rate, startPos: pos * BufFrames.kr(bufNum));
+	sig = Pan2.ar(sig ,pan) * amp;
+	sig = sig * EnvGen.kr(Env.linen(0.01,BufDur.kr(bufNum) - 0.02,0.01),trig,doneAction:2);
+	Out.ar(outbus, sig);
+}).send(s);
 
 SynthDef(\pedalTone, {|scidx = 1, freq = 25, phase = 3, pan = 0, tFreq = 0.05, wFreq = 4, wampF = 0.2, fFreq = 1000, amp = 0.0, gate = 1|
 
@@ -62,7 +75,8 @@ dp.folders.do{|v|
 
 
 	var fp = v.allFolders[v.allFolders.size - 1].asSymbol;
-	~buf.put(fp, ());
+	fp.postln;
+	~buf.put(fp.asSymbol, ());
 
 	v.files.do{|f|
 		var name;
@@ -71,13 +85,18 @@ dp.folders.do{|v|
 		name = name[name.size() -1];
 		name = name.split($.);
 		name = name[0];
-		~buf.put(fp.asSymbol, ~buf.at(fp).put(name.asSymbol, Buffer.read(s, f.fullPath)));
+		name.postln;
+		f.postln;
+		b = Buffer.read(s, f.fullPath);
+		~buf.at(fp).put(name.asSymbol, b);
 	}
 
 };
 
 
 )
+
+~buf [\splats]
 
 
 
@@ -108,6 +127,17 @@ dp.folders.do{|v|
 
 
 
+OSCdef(\startMisty).free;  // unregister OSCdef
+OSCdef(\startMisty, {|msg|
+
+
+	b = ~buf [\misty] .at('misty');
+	~mistyPlayer = Synth.new(\simplePlayOnceStereo, [\bufNum, b , \pan, 0, \amp, 0.25 ]);
+
+
+}, '/startMisty');
+
+
 
 OSCdef(\splat).free;  // unregister OSCdef
 OSCdef(\splat, {|msg|
@@ -126,8 +156,8 @@ OSCdef(\splat, {|msg|
 	};
 
 	options.postln;
-
-	b = ~buf [\splats] ["232211_spit2"].asSymbol;
+	"splat".postln;
+	b =~buf [\splats].at( '338116_splat1');
 	x = Synth.new(\simplePlayOnceMono, [\bufNum, b , \pan, 0, \amp, 1.0 ]);
 
 
@@ -193,15 +223,12 @@ OSCdef(\allOff).free;
 OSCdef(\allOff, {|msg|
 
 	~toneSynths.set(\gate, 0);
+	~mistyPlayer.free;
 
 },'/allOff');
 
 
 )
-
-
-
-
 
 
 
