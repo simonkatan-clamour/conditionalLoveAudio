@@ -25,6 +25,20 @@ SynthDef.new(\simplePlayOnceMono, {|bufNum, loop = 0, trig = 1, rate = 1, pos = 
 	Out.ar(outbus, sig);
 }).send(s);
 
+SynthDef.new(\splatPlayer, {|bufNum, loop = 0, trig = 1, rate = 1, pos = 0, amp = 1, pan = 0, outbus = 0|
+
+	//only difference is a couple of mapping functions
+	var sig, mpos, mrate;
+
+	mpos = LinLin.kr(pos, 0, 1, 0, 0.3);
+	mrate = LinExp.kr(pos, 0, 1, 0.4, 1.4);
+
+	sig = PlayBuf.ar(1, bufNum, rate: mrate, startPos: mpos * BufFrames.kr(bufNum));
+	sig = Pan2.ar(sig ,pan) * amp;
+	sig = sig * EnvGen.kr(Env.linen(0.01,BufDur.kr(bufNum) - 0.02,0.01),trig,doneAction:2);
+	Out.ar(outbus, sig);
+}).send(s);
+
 
 SynthDef.new(\simplePlayOnceStereo, {|bufNum, loop = 0, trig = 1, rate = 1, pos = 0, amp = 1, pan = 0, outbus = 0|
 
@@ -43,7 +57,8 @@ SynthDef(\pedalTone, {|scidx = 1, freq = 25, phase = 3, pan = 0, tFreq = 0.05, w
 	swell = LFTri.kr(tFreq,phase,0.5,0.5);
 	lamp = Lag3.kr(amp , 10);
 	xamp = (-35 + (lamp * 25)).dbamp;
-	Poll.kr(Impulse.kr(10), swell * lamp, \pedal , scidx);
+	SendReply.kr(Impulse.kr(10),'/pedal',  [swell * lamp], scidx);
+
 	wobble = SinOsc.kr(wFreq,0, min(5,freq/40));
 	wamp = SinOsc.kr(wampF,0,0.2,0.3);
 	out = VarSaw.ar(freq + wobble, 0, wamp, swell);
@@ -103,7 +118,6 @@ dp.folders.do{|v|
 
 
 
-
 ////////////////////////////OSC////////////////////////////////
 (
 
@@ -142,23 +156,16 @@ OSCdef(\startMisty, {|msg|
 OSCdef(\splat).free;  // unregister OSCdef
 OSCdef(\splat, {|msg|
 
-	//var txt = msg[1], voice = msg[2], amp = msg[3].asFloat, pan = msg[4].asFloat;
+	var dict = ~packageMessage.value(msg);
 
-	var options = Array.new();
-
-	msg.do{|i c|
-		if(c > 0){
-			if(c%2 == 1 ,
-				{ options = options.add(i.asSymbol)},
-				{ options = options.add(i)}
-			);
-		};
-	};
-
-	options.postln;
-	"splat".postln;
 	b =~buf [\splats].at( '338116_splat1');
-	x = Synth.new(\simplePlayOnceMono, [\bufNum, b , \pan, 0, \amp, 1.0 ]);
+	x = Synth.new(\splatPlayer,
+			[\bufNum, b ,
+			\pan, dict.at(\pan),
+			\amp , 1.0,
+			\pos, dict.at(\pos) ,
+			\rate, dict.at(\rate)
+	]);
 
 
 }, '/splat');
@@ -167,13 +174,14 @@ OSCdef(\splat, {|msg|
 
 ~vizNode = NetAddr("127.0.0.1", 12345); // send data back to vizualizer
 
-~pollNode.free;
-~pollNode = OSCFunc(
-{
-	arg msg;
+~replyNode.free;
+~replyNode = OSCFunc({ |msg|
+
 	~vizNode.sendMsg("/poll", msg[2], msg[3].abs);
-},
-'/tr', s.addr);
+
+}, '/pedal');
+
+
 
 OSCdef(\addTone).free;
 OSCdef(\addTone, {|msg|
@@ -227,8 +235,29 @@ OSCdef(\allOff, {|msg|
 
 },'/allOff');
 
+)
+
+(
+
+fork{
+	10.do{
+		b =~buf [\splats].at( '338116_splat1');
+		x = Synth.new(\splatPlayer,
+			[\bufNum, b , \pan, 0, \amp , 1.0, \pos, rrand(0.0 ,1.0), \rate, rrand(0.0 ,1.0) ]);
+		2.0.wait;
+	}
+}
+)
+
+exprand(0.01,1.2)
+
+(
+		b =~buf [\splats].at( '338116_splat1');
+		x = Synth.new(\splatPlayer, [\bufNum, b , \pan, 0, \amp, 1.0, \pos, 0.3, \rate,  1   ]);
 
 )
+
+
 
 
 
