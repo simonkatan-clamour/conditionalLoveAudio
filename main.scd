@@ -57,7 +57,7 @@ SynthDef(\pedalTone, {|scidx = 1, freq = 25, phase = 3, pan = 0, tFreq = 0.05, w
 	swell = LFTri.kr(tFreq,phase,0.5,0.5);
 	lamp = Lag3.kr(amp , 10);
 	xamp = (-35 + (lamp * 25)).dbamp;
-	SendReply.kr(Impulse.kr(10),'/pedal',  [swell * lamp], scidx);
+	SendReply.kr(Impulse.kr(5),'/pedal',  [swell * lamp], scidx);
 
 	wobble = SinOsc.kr(wFreq,0, min(5,freq/40));
 	wamp = SinOsc.kr(wampF,0,0.2,0.3);
@@ -146,7 +146,7 @@ OSCdef(\startMisty, {|msg|
 
 
 	b = ~buf [\misty] .at('misty');
-	~mistyPlayer = Synth.new(\simplePlayOnceStereo, [\bufNum, b , \pan, 0, \amp, 0.25 ]);
+	~mistyPlayer = Synth.new(\simplePlayOnceStereo, [\bufNum, b , \pan, 0, \amp, 0.2 ]);
 
 
 }, '/startMisty');
@@ -166,6 +166,8 @@ OSCdef(\splat, {|msg|
 			\pos, dict.at(\pos) ,
 			\rate, dict.at(\rate)
 	]);
+
+
 
 
 }, '/splat');
@@ -225,6 +227,30 @@ OSCdef(\updateTone, {|msg|
 
 }, '/updateTone');
 
+OSCdef(\endTone).free;
+OSCdef(\endTone, {|msg|
+
+	var id, dict = ~packageMessage.value(msg);
+	id = ("synth_" + dict.at(\scidx)).asSymbol;
+
+	~toneRefs.at(id).set(\gate, 0);
+
+	//also end trans tone here
+
+}, '/endTone');
+
+OSCdef(\transTone).free;
+OSCdef(\transTone, {|msg|
+
+	//very basic can be improved
+	{
+		var sig = WhiteNoise.ar(EnvGen.kr(Env.new([0,1],[4.0],2)));
+		Pan2.ar(sig, 0);
+	}.play;
+
+
+}, '/transTone');
+
 
 
 OSCdef(\allOff).free;
@@ -256,6 +282,7 @@ exprand(0.01,1.2)
 		x = Synth.new(\splatPlayer, [\bufNum, b , \pan, 0, \amp, 1.0, \pos, 0.3, \rate,  1   ]);
 
 )
+
 
 
 
