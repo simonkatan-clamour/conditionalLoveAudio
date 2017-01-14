@@ -69,8 +69,16 @@ SynthDef(\pedalTone, {|scidx = 1, freq = 25, phase = 3, pan = 0, tFreq = 0.05, w
 
 }).send(s);
 
-)
+SynthDef(\transSweep, {|scidx = 1, pan = 0, gate = 1|
 
+	var sig;
+	sig = WhiteNoise.ar(EnvGen.kr(Env.new([0,1],[4.0],2)));
+	sig = Pan2.ar(sig, pan);
+	sig = sig * EnvGen.kr(Env.asr(0.01,1,0.01),gate, doneAction:2);
+	Out.ar(0, sig);
+
+}).send(s);
+)
 
 //load all the files into an identity dictionary
 
@@ -122,9 +130,13 @@ dp.folders.do{|v|
 (
 
 ~toneRefs = ();
+~transRefs = ();
 
 ~toneSynths.free;
 ~toneSynths = Group.new;
+
+~transSweeps.free;
+~transSweeps = Group.new;
 
 
 //helper function
@@ -234,6 +246,7 @@ OSCdef(\endTone, {|msg|
 	id = ("synth_" + dict.at(\scidx)).asSymbol;
 
 	~toneRefs.at(id).set(\gate, 0);
+	~transRefs.at(id).set(\gate, 0);
 
 	//also end trans tone here
 
@@ -242,11 +255,20 @@ OSCdef(\endTone, {|msg|
 OSCdef(\transTone).free;
 OSCdef(\transTone, {|msg|
 
-	//very basic can be improved
-	{
-		var sig = WhiteNoise.ar(EnvGen.kr(Env.new([0,1],[4.0],2)));
-		Pan2.ar(sig, 0);
-	}.play;
+
+	var id, dict = ~packageMessage.value(msg);
+
+	dict.postln;
+
+	id = ("synth_" + dict.at(\scidx)).asSymbol;
+
+	x = Synth.head(~transSweeps, \transSweep, [
+		\scidx, dict.at(\scidx),
+		\pan, dict.at(\pan)
+	]);
+
+
+	~transRefs.put(id, x);
 
 
 }, '/transTone');
@@ -257,6 +279,7 @@ OSCdef(\allOff).free;
 OSCdef(\allOff, {|msg|
 
 	~toneSynths.set(\gate, 0);
+	~transSweeps.set(\gate, 0);
 	~mistyPlayer.free;
 
 },'/allOff');
