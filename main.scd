@@ -5,7 +5,7 @@ NetAddr.langPort;
 
 (
 
-SynthDef.new(\simplePlayerMono, {|bufNum, loop = 0, trig = 1, rate = 1, pos = 0, amp = 1, outbus = 0, pan =0 |
+SynthDef.new(\simplePlayerMono, {|bufNum, loop = 0, trig = 1, rate =  1, pos = 0, amp = 1, outbus = 0, pan =0 |
 
 	var sig;
 
@@ -78,7 +78,45 @@ SynthDef(\transSweep, {|scidx = 1, pan = 0, gate = 1|
 	Out.ar(0, sig);
 
 }).send(s);
+
+SynthDef(\crawlerTone, {
+	|scidx = 0, gate =1, bufNum = 0, pan = 0, amp = 0.5, prange = 0.1, pstart = 0.1, gdur = 0.05, tmul = 10, tadd = 5, energy = 0 |
+
+	//energy comes from transEnv of displayClass
+
+    var trate, dur, rate, trig, pos, tpan, sig;
+
+	trate = 5 + (EnvGen.kr(Env.asr(2.0,1.0,0.5, curve: 1), gate) * 10);
+	trig = LFPulse.ar(trate, width: 0.1, add: -0.5);
+
+    dur = gdur/trate;
+	pos = BufDur.kr(bufNum) * TRand.kr(0.0, prange, trig) + pstart;
+
+	rate = 1.0 + (energy * 2.0);
+
+	tpan = TRand.kr(-0.1,0.1,trig) + max(-0.9,min(0.9,pan));
+
+
+    sig = TGrains.ar(
+		2,      //output
+		trig , //trigger
+		bufNum,
+		rate,
+		pos,
+		dur,
+		tpan,
+		amp,
+		2);
+
+	sig = sig * EnvGen.kr(Env.asr(0.01,1.0,0.01), gate ,doneAction: 2);
+	Out.ar(0, sig);
+
+}).send(s);
+
 )
+
+
+
 
 //load all the files into an identity dictionary
 
@@ -119,7 +157,7 @@ dp.folders.do{|v|
 
 )
 
-~buf [\splats]
+//~buf [\splats]
 
 
 
@@ -131,12 +169,16 @@ dp.folders.do{|v|
 
 ~toneRefs = ();
 ~transRefs = ();
+~crawlerRefs = ();
 
 ~toneSynths.free;
 ~toneSynths = Group.new;
 
 ~transSweeps.free;
 ~transSweeps = Group.new;
+
+~crawlerSynths.free;
+~crawlerSynths = Group.new;
 
 
 //helper function
@@ -274,37 +316,74 @@ OSCdef(\transTone, {|msg|
 }, '/transTone');
 
 
+OSCdef(\startCrawler).free;
+OSCdef(\startCrawler, {|msg|
+
+
+	var id, dict = ~packageMessage.value(msg);
+
+	dict.postln;
+
+	id = ("synth_" + dict.at(\scidx)).asSymbol;
+
+	x = Synth.head(~crawlerSynths, \crawlerTone, [
+		\bufNum, ~buf[\crawlers].at(\catBird),
+		\scidx, dict.at(\scidx),
+		\pan, dict.at(\pan),
+		\gdur, 1.0,
+		\amp, 0.2
+	]);
+
+
+	~crawlerRefs.put(id, x);
+
+
+}, '/startCrawler');
+
+OSCdef(\updateCrawler).free;
+OSCdef(\updateCrawler, {|msg|
+
+
+	var id, dict = ~packageMessage.value(msg);
+	id = ("synth_" + dict.at(\scidx)).asSymbol;
+
+	~crawlerRefs.at(id).set(\energy, dict.at(\energy));
+
+
+}, '/updateCrawler');
+
+OSCdef(\endCrawler).free;
+OSCdef(\endCrawler, {|msg|
+
+
+	var id, dict = ~packageMessage.value(msg);
+	id = ("synth_" + dict.at(\scidx)).asSymbol;
+
+	~crawlerRefs.at(id).set(\gate, 0);
+
+
+}, '/endCrawler');
+
 
 OSCdef(\allOff).free;
 OSCdef(\allOff, {|msg|
 
 	~toneSynths.set(\gate, 0);
 	~transSweeps.set(\gate, 0);
+	~crawlerSynths.set(\gate, 0);
 	~mistyPlayer.free;
 
 },'/allOff');
 
 )
 
-(
 
-fork{
-	10.do{
-		b =~buf [\splats].at( '338116_splat1');
-		x = Synth.new(\splatPlayer,
-			[\bufNum, b , \pan, 0, \amp , 1.0, \pos, rrand(0.0 ,1.0), \rate, rrand(0.0 ,1.0) ]);
-		2.0.wait;
-	}
-}
-)
+x = Synth.new(\crawlerTone, [\bufNum, ~buf[\crawlers].at(\crane), \gdur, 0.7 ])
+x.set(\gate, 0)
 
-exprand(0.01,1.2)
+x.free;
 
-(
-		b =~buf [\splats].at( '338116_splat1');
-		x = Synth.new(\splatPlayer, [\bufNum, b , \pan, 0, \amp, 1.0, \pos, 0.3, \rate,  1   ]);
 
-)
 
 
 
