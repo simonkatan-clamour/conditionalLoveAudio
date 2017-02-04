@@ -344,10 +344,14 @@ OSCdef(\updateCrawler).free;
 OSCdef(\updateCrawler, {|msg|
 
 
-	var id, dict = ~packageMessage.value(msg);
+	var id, amp, dict = ~packageMessage.value(msg);
 	id = ("synth_" + dict.at(\scidx)).asSymbol;
 
-	~crawlerRefs.at(id).set(\energy, dict.at(\energy));
+	dict.postln;
+
+	amp = (-10 + (dict.at(\death) * -60)).dbamp; //fade out
+
+	~crawlerRefs.at(id).set(\energy, dict.at(\energy), \amp,  amp);
 
 
 }, '/updateCrawler');
@@ -383,9 +387,7 @@ x.set(\gate, 0)
 
 x.free;
 
-
-
-
+-10.dbamp
 
 
 
