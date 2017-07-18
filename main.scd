@@ -40,20 +40,24 @@ SynthDef.new(\splatPlayer, {|bufNum, loop = 0, trig = 1, rate = 1, pos = 0, amp 
 }).send(s);
 
 
-SynthDef.new(\simplePlayOnceStereo, {|bufNum, trig = 1, rate = 1, gate=1, pos = 0, amp = 1, pan = 0, outbus = 0, in = 0.001, out = 0.01|
+SynthDef.new(\simplePlayOnceStereo, {|bufNum, rate = 1, gate=1, pos = 0, dur=5000, amp = 1, pan = 0, outbus = 0, in = 0.001, out = 0.01|
 
-	var sig;
+	var sig, pf;
 
-	sig = PlayBuf.ar(2, bufNum, rate: rate, startPos: pos * BufFrames.kr(bufNum));
+	dur = min(dur, BufDur.kr(bufNum) - pos);
+	pf = (pos/BufDur.kr(bufNum))  * BufFrames.kr(bufNum);
+	sig = PlayBuf.ar(2, bufNum, rate: rate, startPos: pf);
 	sig = Pan2.ar(sig ,pan) * amp;
-	sig = sig * EnvGen.kr(Env.linen(in,BufDur.kr(bufNum) - (in + out),out),trig,doneAction:2);
+	sig = sig * EnvGen.kr(Env.linen(in, dur - (in + out),out),1,doneAction:2);
 	sig = sig * EnvGen.kr(Env.asr(in,1,out,'sine'),gate, doneAction:2);
 	Out.ar(outbus, sig);
 }).send(s);
 
-SynthDef.new(\simplePlayStereo, {|bufNum, loop = 1, trig = 1, rate = 1, gate=1, pos = 0, amp = 1, pan = 0, in = 0.001, out = 0.01, outbus = 0|
-	var sig;
-	sig = PlayBuf.ar(2, bufNum, rate: rate, startPos: pos * BufFrames.kr(bufNum), loop: 1);
+SynthDef.new(\simplePlayStereo, {|bufNum, loop = 1, trig = 1, rate = 1, gate=1, pos = 0, dur = 5000, amp = 1, pan = 0, in = 0.001, out = 0.01, outbus = 0|
+	var sig, pf;
+	dur = min(dur, BufDur.kr(bufNum) - pos);
+	pf = (pos/BufDur.kr(bufNum))  * BufFrames.kr(bufNum);
+	sig = PlayBuf.ar(2, bufNum, rate: rate, startPos: pf, loop: 1, trigger: Impulse.ar(1/dur));
 	sig = Pan2.ar(sig ,pan) * amp;
 	sig = sig * EnvGen.kr(Env.asr(in,1,out,'sine'),gate, doneAction:2);
 	Out.ar(outbus, sig);
@@ -216,7 +220,6 @@ OSCdef(\playStereo, {|msg|
 
 	var dict = ~packageMessage.value(msg),  loop = 0, synth = \simplePlayOnceStereo, para;
 
-	msg.postln;
 
 	if(dict.at(\solo).asString == "true", {
 		~polyPlayers.set(\gate, 0);
@@ -227,13 +230,16 @@ OSCdef(\playStereo, {|msg|
 
 	b = ~buf [dict.at(\dir)] .at(dict.at(\file));
 	para =  [
-		\bufNum, b ,
-		\pan, 0,
-		\amp, dict.at(\amp)
+		\bufNum, b
 	];
 
-	if(dict.at(\in) != Nil, {para = para.add(\in); para = para.add(dict.at(\in))});
-	if(dict.at(\out) != Nil, {para = para.add(\out); para = para.add(dict.at(\out))});
+	if(dict.at(\amp) != nil, {para = para.add(\amp); para = para.add(dict.at(\amp))});
+	if(dict.at(\in) != nil, {para = para.add(\in); para = para.add(dict.at(\in))});
+	if(dict.at(\out) != nil, {para = para.add(\out); para = para.add(dict.at(\out))});
+	if(dict.at(\pos) != nil, {para = para.add(\pos); para = para.add(dict.at(\pos))});
+	if(dict.at(\dur) != nil, {para = para.add(\dur); para = para.add(dict.at(\dur))});
+
+	//para.postln;
 
 	Synth.head(~polyPlayers, synth, para);
 
