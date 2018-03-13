@@ -69,7 +69,7 @@ if(~phraseStore != nil, {
 
 //function to add phrase to
 
-~addphrase = { |phrase, voiceIdx = 0|
+~addphrase = { |phrase|
 
 	var recorder;
 
@@ -78,7 +78,7 @@ if(~phraseStore != nil, {
 	Speech.doneAction_({ |voice|
 		recorder.set(\trigger, 0);
 		~isRecording = false;
-		~serverNode.sendMsg("/phraseComplete", phrase[0], phrase[1], voiceIdx); //call back message
+		~serverNode.sendMsg("/phraseComplete", phrase[0], phrase[1], phrase[3]); //call back message
 		("done recording " + phrase).postln;
 	});
 
@@ -86,12 +86,11 @@ if(~phraseStore != nil, {
 
 	Buffer.alloc(s, 44100 * 4, 1,
 	{ |buffer|
-		var key = (phrase[0].asString + "_" + phrase[1].asString).asSymbol;
-
+		var key = (phrase[0].asString + "_" + phrase[1].asString + "_" + phrase[3].asString).asSymbol;
 		~phraseStore.at(key).free; //free the old buffer if it exists
-		~phraseStore.put(key,buffer); //TODO implement multiVoice
+		~phraseStore.put(key,buffer);
 		recorder = Synth.new(\StoreSpeech, [\buf, buffer]);
-		phrase[2].asString.speak(voiceIdx);
+		phrase[2].asString.speak(phrase[3]);
 	});
 
 };
@@ -111,9 +110,9 @@ if(~phraseStore != nil, {
 			{
 				var phrase = ~phraseQueue.pop();
 				~isRecording = true;
-				~addphrase.value(phrase, rrand(0,~voices.size())); //TODO remove random voice
+				~addphrase.value(phrase);
 			},{
-				//"all voices occupied".postln
+				//"already recording".postln
 			});
 
 
@@ -136,16 +135,17 @@ OSCdef(\recordPhrases, {|msg|
 	msg.postln;
 
 	//TODO check if phrase is already there....
-	//TODO multivoice here
-	~phraseQueue.addFirst([msg[1], 0, msg[2].asString]);
-	~phraseQueue.addFirst([msg[1], 1, msg[3].asString]);
+	~voices.do({|item, count|
+		~phraseQueue.addFirst([msg[1], 0, msg[2].asString, count]);
+		~phraseQueue.addFirst([msg[1], 1, msg[3].asString, count]);
+	});
 
 
 }, '/recordPhrases');
 
 OSCdef(\speakPhrase).free;  // unregister OSCdef
 OSCdef(\speakPhrase, {|msg|
-	var key = msg[1].asString + "_" + msg[2].asString;
+	var key = msg[1].asString + "_" + msg[2].asString + "_" + msg[3].asString;
 	key.postln;
  	x = Synth(\simplePlayOnceMono, [\bufNum, ~phraseStore[key.asSymbol], \amp, 0.2, \pan, rrand(-0.75, 0.75)]);
 
@@ -156,7 +156,7 @@ OSCdef(\speakPhrase, {|msg|
 /////////////////////////////////////DEBUGGING///////////////////////////////////////
 
 
-~serverNode.sendMsg("/phraseComplete", "test", 0); //call back message
+/*~serverNode.sendMsg("/phraseComplete", "test", 0); //call back message
 
 (
 
@@ -181,7 +181,7 @@ OSCdef(\speakPhrase, {|msg|
 ~phraseQueue.addFirst("a test 18");
 ~phraseQueue.addFirst("a test 19");
 
-)
+)*/
 
 
 
