@@ -146,7 +146,6 @@ OSCdef(\recordPhrases, {|msg|
 OSCdef(\speakPhrase).free;  // unregister OSCdef
 OSCdef(\speakPhrase, {|msg|
 	var key = msg[1].asString + "_" + msg[2].asString + "_" + msg[3].asString;
-	key.postln;
  	x = Synth(\simplePlayOnceMono, [\bufNum, ~phraseStore[key.asSymbol], \amp, 0.2, \pan, rrand(-0.75, 0.75)]);
 
 },'/speakPhrase')
