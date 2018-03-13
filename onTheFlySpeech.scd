@@ -73,20 +73,25 @@ if(~phraseStore != nil, {
 
 	var recorder;
 
+	phrase.postln;
+
 	Speech.doneAction_({ |voice|
 		recorder.set(\trigger, 0);
 		~isRecording = false;
-		~serverNode.sendMsg("/phraseComplete", phrase, voiceIdx); //call back message
+		~serverNode.sendMsg("/phraseComplete", phrase[0], phrase[1], voiceIdx); //call back message
 		("done recording " + phrase).postln;
 	});
 
 
+
 	Buffer.alloc(s, 44100 * 4, 1,
 	{ |buffer|
-		~phraseStore.at(phrase.asSymbol).free; //free the old buffer if it exists
-		~phraseStore.put(phrase.asSymbol, buffer); //TODO implement multiVoice
+		var key = (phrase[0].asString + "_" + phrase[1].asString).asSymbol;
+
+		~phraseStore.at(key).free; //free the old buffer if it exists
+		~phraseStore.put(key,buffer); //TODO implement multiVoice
 		recorder = Synth.new(\StoreSpeech, [\buf, buffer]);
-		phrase.speak(voiceIdx);
+		phrase[2].asString.speak(voiceIdx);
 	});
 
 };
@@ -125,28 +130,33 @@ if(~phraseStore != nil, {
 
 (
 
-OSCdef(\recordPhrase).free;  // unregister OSCdef
-OSCdef(\recordPhrase, {|msg|
+OSCdef(\recordPhrases).free;  // unregister OSCdef
+OSCdef(\recordPhrases, {|msg|
 
-	msg[1].postln;
+	msg.postln;
 
 	//TODO check if phrase is already there....
+	//TODO multivoice here
+	~phraseQueue.addFirst([msg[1], 0, msg[2].asString]);
+	~phraseQueue.addFirst([msg[1], 1, msg[3].asString]);
 
-	~phraseQueue.addFirst(msg[1].asString); //TODO multivoice here
 
-
-}, '/recordPhrase');
+}, '/recordPhrases');
 
 OSCdef(\speakPhrase).free;  // unregister OSCdef
 OSCdef(\speakPhrase, {|msg|
-	msg.postln;
-	x = Synth(\simplePlayOnceMono, [\bufNum, ~phraseStore[msg[1].asSymbol], \amp, 0.2, \pan, rrand(-0.75, 0.75)]);
+	var key = msg[1].asString + "_" + msg[2].asString;
+	key.postln;
+ 	x = Synth(\simplePlayOnceMono, [\bufNum, ~phraseStore[key.asSymbol], \amp, 0.2, \pan, rrand(-0.75, 0.75)]);
 
 },'/speakPhrase')
 
 )
 
 /////////////////////////////////////DEBUGGING///////////////////////////////////////
+
+
+~serverNode.sendMsg("/phraseComplete", "test", 0); //call back message
 
 (
 
