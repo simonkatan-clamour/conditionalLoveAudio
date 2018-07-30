@@ -162,6 +162,7 @@ OSCdef(\recordPhrases, {|msg|
 	msg.postln;
 
 	//TODO check if phrase is already there....
+
 	~voices.do({|item, count|
 		~phraseQueue.addFirst([msg[1], 0, msg[2].asString, count]);
 		~phraseQueue.addFirst([msg[1], 1, msg[3].asString, count]);
@@ -182,6 +183,22 @@ OSCdef(\recordWinPhrase, {|msg|
 
 
 }, '/recordWinPhrase');
+
+OSCdef(\recordJoinPhrases).free;  // unregister OSCdef
+OSCdef(\recordJoinPhrases, {|msg|
+
+	msg.postln;
+
+	//TODO check if phrase is already there....
+
+	~phraseQueue.addFirst([msg[1], 0, msg[2].asString, 7]); //voice 7 is currently used as win voice
+	~phraseQueue.addFirst([msg[1], 1, msg[3].asString, 7]);
+	~phraseQueue.addFirst([msg[1], 2, msg[4].asString, 7]);
+	~phraseQueue.addFirst([msg[1], 3, msg[5].asString, 7]);
+
+
+}, '/recordJoinPhrases');
+
 
 OSCdef(\speakPhrase).free;  // unregister OSCdef
 OSCdef(\speakPhrase, {|msg|
@@ -207,8 +224,8 @@ OSCdef(\voteComplete, {|msg|
 
 	//mute the voice group - play the win music
 
-	var key = msg[1].asString ++ "_win_" ++ msg[2].asString ++ "_7";
-
+	//var key = msg[1].asString ++ "_win_" ++ msg[2].asString ++ "_7";
+	var key = msg[1].asString;
 
 	("concluded " + key).postln;
 	~voiceGroup.set(\amp,0.0); //mute any current synths - perhaps better as a bus ?
