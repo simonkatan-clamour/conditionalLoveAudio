@@ -5,126 +5,149 @@ NetAddr.langPort;
 
 (
 
-SynthDef.new(\simplePlayerMono, {|bufNum, loop = 0, trig = 1, rate =  1, pos = 0, amp = 1, outbus = 0, pan =0 |
+s.quit;
+//ServerOptions.inDevices.postln;
+o = ServerOptions.new;
+o.outDevice = "Scarlett 2i4 USB";
+//o.outDevice = "Built-in Output";
+o.inDevice = "Soundflower (2ch)";
+s.options = o;
+s.boot;
 
-	var sig;
+s.doWhenBooted({
 
-	sig = PlayBuf.ar(1, bufNum, rate: rate, startPos: pos * BufFrames.kr(bufNum), loop: loop);
-	sig = Pan2.ar(sig , pan) * amp;
-	sig = sig * EnvGen.kr(Env.asr(0.01,1,0.2),trig,doneAction:2);
-	Out.ar(outbus, sig);
-}).send(s);
+	Speech.init(8); //One voice for each accent
 
-SynthDef.new(\simplePlayOnceMono, {|bufNum, trig = 1, rate = 1, pos = 0, amp = 1, pan = 0, outbus = 0|
-
-	var sig;
-
-	sig = PlayBuf.ar(1, bufNum, rate: rate, startPos: pos * BufFrames.kr(bufNum));
-	sig = Pan2.ar(sig ,pan) * amp;
-	sig = sig * EnvGen.kr(Env.linen(0.01,BufDur.kr(bufNum) - 0.02,0.01),trig,doneAction:2);
-	Out.ar(outbus, sig);
-}).send(s);
-
-SynthDef.new(\splatPlayer, {|bufNum, loop = 0, trig = 1, rate = 1, pos = 0, amp = 1, pan = 0, outbus = 0|
-
-	//only difference is a couple of mapping functions
-	var sig, mpos, mrate;
-
-	mpos = LinLin.kr(pos, 0, 1, 0, 0.3);
-	mrate = LinExp.kr(pos, 0, 1, 0.4, 1.4);
-
-	sig = PlayBuf.ar(1, bufNum, rate: mrate, startPos: mpos * BufFrames.kr(bufNum));
-	sig = Pan2.ar(sig ,pan) * amp;
-	sig = sig * EnvGen.kr(Env.linen(0.01,BufDur.kr(bufNum) - 0.02,0.01),trig,doneAction:2);
-	Out.ar(outbus, sig);
-}).send(s);
+	SynthDef(\StoreSpeech, {|buf = 0, trigger =1|
+		var env;
+		env = EnvGen.kr(Env.asr(0.01,1,0.01), trigger, doneAction: 2);
+		RecordBuf.ar(In.ar(2,1) * trigger, buf, trigger: trigger, doneAction: 2, loop:0 );
+	}).send(s);
 
 
-SynthDef.new(\simplePlayOnceStereo, {|bufNum, rate = 1, gate=1, pos = 0, dur=5000, amp = 1, pan = 0, outbus = 0, in = 0.001, out = 0.01|
+	SynthDef.new(\simplePlayerMono, {|bufNum, loop = 0, trig = 1, rate =  1, pos = 0, amp = 1, outbus = 0, pan =0 |
 
-	var sig, pf;
+		var sig;
 
-	dur = min(dur, BufDur.kr(bufNum) - pos);
-	pf = (pos/BufDur.kr(bufNum))  * BufFrames.kr(bufNum);
-	sig = PlayBuf.ar(2, bufNum, rate: rate, startPos: pf);
-	sig = Pan2.ar(sig ,pan) * amp;
-	sig = sig * EnvGen.kr(Env.linen(in, dur - (in + out),out),1,doneAction:2);
-	sig = sig * EnvGen.kr(Env.asr(in,1,out,'sine'),gate, doneAction:2);
-	Out.ar(outbus, sig);
-}).send(s);
+		sig = PlayBuf.ar(1, bufNum, rate: rate, startPos: pos * BufFrames.kr(bufNum), loop: loop);
+		sig = Pan2.ar(sig , pan) * amp;
+		sig = sig * EnvGen.kr(Env.asr(0.01,1,0.2),trig,doneAction:2);
+		Out.ar(outbus, sig);
+	}).send(s);
 
-SynthDef.new(\simplePlayStereo, {|bufNum, loop = 1, trig = 1, rate = 1, gate=1, pos = 0, dur = 5000, amp = 1, pan = 0, in = 0.001, out = 0.01, outbus = 0|
-	var sig, pf;
-	dur = min(dur, BufDur.kr(bufNum) - pos);
-	pf = (pos/BufDur.kr(bufNum))  * BufFrames.kr(bufNum);
-	sig = PlayBuf.ar(2, bufNum, rate: rate, startPos: pf, loop: 1, trigger: Impulse.ar(1/dur));
-	sig = Pan2.ar(sig ,pan) * amp;
-	sig = sig * EnvGen.kr(Env.asr(in,1,out,'sine'),gate, doneAction:2);
-	Out.ar(outbus, sig);
-}).send(s);
+	SynthDef.new(\simplePlayOnceMono, {|bufNum, trig = 1, rate = 1, pos = 0, amp = 1, pan = 0, outbus = 0|
 
-SynthDef(\pedalTone, {|scidx = 1, freq = 25, phase = 3, pan = 0, tFreq = 0.05, wFreq = 4, wampF = 0.2, fFreq = 1000, amp = 0.0, gate = 1|
+		var sig;
 
-	var wamp, swell, wobble, out, lamp, xamp;
+		sig = PlayBuf.ar(1, bufNum, rate: rate, startPos: pos * BufFrames.kr(bufNum));
+		sig = Pan2.ar(sig ,pan) * amp;
+		sig = sig * EnvGen.kr(Env.linen(0.01,BufDur.kr(bufNum) - 0.02,0.01),trig,doneAction:2);
+		Out.ar(outbus, sig);
+	}).send(s);
 
-	swell = LFTri.kr(tFreq,phase,0.5,0.5);
-	lamp = Lag3.kr(amp , 10);
-	xamp = (-35 + (lamp * 25)).dbamp;
-	SendReply.kr(Impulse.kr(5),'/pedal',  [swell * lamp], scidx);
+	SynthDef.new(\splatPlayer, {|bufNum, loop = 0, trig = 1, rate = 1, pos = 0, amp = 1, pan = 0, outbus = 0|
 
-	wobble = SinOsc.kr(wFreq,0, min(5,freq/40));
-	wamp = SinOsc.kr(wampF,0,0.2,0.3);
-	out = VarSaw.ar(freq + wobble, 0, wamp, swell);
-	out = out * 0.8 + RHPF.ar(out, fFreq, 0.02, 0.2);
-	out = Pan2.ar(out, pan) * xamp;
-	out = out * EnvGen.kr(Env.asr(0.1,1,0.01,'sine'),gate, doneAction:2);
-	Out.ar(0, out);
+		//only difference is a couple of mapping functions
+		var sig, mpos, mrate;
 
-}).send(s);
+		mpos = LinLin.kr(pos, 0, 1, 0, 0.3);
+		mrate = LinExp.kr(pos, 0, 1, 0.4, 1.4);
 
-SynthDef(\transSweep, {|scidx = 1, pan = 0, gate = 1|
-
-	var sig;
-	sig = WhiteNoise.ar(EnvGen.kr(Env.new([0,1],[4.0],2)));
-	sig = Pan2.ar(sig, pan);
-	sig = sig * EnvGen.kr(Env.asr(0.01,1,0.01),gate, doneAction:2);
-	Out.ar(0, sig);
-
-}).send(s);
-
-SynthDef(\crawlerTone, {
-	|scidx = 0, gate =1, bufNum = 0, pan = 0, amp = 0.5, prange = 0.5, pstart = 0.1,   energy = 0, rot = 0, baseRate = 0.01 |
-
-	//energy comes from transEnv of displayClass
-
-    var trate, dur, rate, trig, pos, tpan, sig;
-
-	trate = 45 * energy;
-	trig = LFPulse.ar(trate, width: 0.1, add: -0.5);
-
-	dur = 0.05 + pow(energy, 0.5);
-	pos = BufDur.kr(bufNum) *  (rot * 0.75) + TRand.kr(0.0, 0.1, trig);
-
-	rate = baseRate;
-
-	tpan = TRand.kr(-0.1,0.1,trig) + max(-0.9,min(0.9,pan));
+		sig = PlayBuf.ar(1, bufNum, rate: mrate, startPos: mpos * BufFrames.kr(bufNum));
+		sig = Pan2.ar(sig ,pan) * amp;
+		sig = sig * EnvGen.kr(Env.linen(0.01,BufDur.kr(bufNum) - 0.02,0.01),trig,doneAction:2);
+		Out.ar(outbus, sig);
+	}).send(s);
 
 
-    sig = TGrains.ar(
-		2,      //output
-		trig , //trigger
-		bufNum,
-		rate,
-		pos,
-		dur,
-		tpan,
-		amp * pow(energy, 0.2),
-		2);
+	SynthDef.new(\simplePlayOnceStereo, {|bufNum, rate = 1, gate=1, pos = 0, dur=5000, amp = 1, pan = 0, outbus = 0, in = 0.001, out = 0.01|
 
-	sig = sig * EnvGen.kr(Env.asr(0.01,1.0,0.1), gate ,doneAction: 2);
-	Out.ar(0, sig);
+		var sig, pf;
 
-}).send(s);
+		dur = min(dur, BufDur.kr(bufNum) - pos);
+		pf = (pos/BufDur.kr(bufNum))  * BufFrames.kr(bufNum);
+		sig = PlayBuf.ar(2, bufNum, rate: rate, startPos: pf);
+		sig = Pan2.ar(sig ,pan) * amp;
+		sig = sig * EnvGen.kr(Env.linen(in, dur - (in + out),out),1,doneAction:2);
+		sig = sig * EnvGen.kr(Env.asr(in,1,out,'sine'),gate, doneAction:2);
+		Out.ar(outbus, sig);
+	}).send(s);
+
+	SynthDef.new(\simplePlayStereo, {|bufNum, loop = 1, trig = 1, rate = 1, gate=1, pos = 0, dur = 5000, amp = 1, pan = 0, in = 0.001, out = 0.01, outbus = 0|
+		var sig, pf;
+		dur = min(dur, BufDur.kr(bufNum) - pos);
+		pf = (pos/BufDur.kr(bufNum))  * BufFrames.kr(bufNum);
+		sig = PlayBuf.ar(2, bufNum, rate: rate, startPos: pf, loop: 1, trigger: Impulse.ar(1/dur));
+		sig = Pan2.ar(sig ,pan) * amp;
+		sig = sig * EnvGen.kr(Env.asr(in,1,out,'sine'),gate, doneAction:2);
+		Out.ar(outbus, sig);
+	}).send(s);
+
+	SynthDef(\pedalTone, {|scidx = 1, freq = 25, phase = 3, pan = 0, tFreq = 0.05, wFreq = 4, wampF = 0.2, fFreq = 1000, amp = 0.0, gate = 1|
+
+		var wamp, swell, wobble, out, lamp, xamp;
+
+		swell = LFTri.kr(tFreq,phase,0.5,0.5);
+		lamp = Lag3.kr(amp , 10);
+		xamp = (-35 + (lamp * 25)).dbamp;
+		SendReply.kr(Impulse.kr(5),'/pedal',  [swell * lamp], scidx);
+
+		wobble = SinOsc.kr(wFreq,0, min(5,freq/40));
+		wamp = SinOsc.kr(wampF,0,0.2,0.3);
+		out = VarSaw.ar(freq + wobble, 0, wamp, swell);
+		out = out * 0.8 + RHPF.ar(out, fFreq, 0.02, 0.2);
+		out = Pan2.ar(out, pan) * xamp;
+		out = out * EnvGen.kr(Env.asr(0.1,1,0.01,'sine'),gate, doneAction:2);
+		Out.ar(0, out);
+
+	}).send(s);
+
+	SynthDef(\transSweep, {|scidx = 1, pan = 0, gate = 1|
+
+		var sig;
+		sig = WhiteNoise.ar(EnvGen.kr(Env.new([0,1],[4.0],2)));
+		sig = Pan2.ar(sig, pan);
+		sig = sig * EnvGen.kr(Env.asr(0.01,1,0.01),gate, doneAction:2);
+		Out.ar(0, sig);
+
+	}).send(s);
+
+	SynthDef(\crawlerTone, {
+		|scidx = 0, gate =1, bufNum = 0, pan = 0, amp = 0.5, prange = 0.5, pstart = 0.1,   energy = 0, rot = 0, baseRate = 0.01 |
+
+		//energy comes from transEnv of displayClass
+
+		var trate, dur, rate, trig, pos, tpan, sig;
+
+		trate = 45 * energy;
+		trig = LFPulse.ar(trate, width: 0.1, add: -0.5);
+
+		dur = 0.05 + pow(energy, 0.5);
+		pos = BufDur.kr(bufNum) *  (rot * 0.75) + TRand.kr(0.0, 0.1, trig);
+
+		rate = baseRate;
+
+		tpan = TRand.kr(-0.1,0.1,trig) + max(-0.9,min(0.9,pan));
+
+
+		sig = TGrains.ar(
+			2,      //output
+			trig , //trigger
+			bufNum,
+			rate,
+			pos,
+			dur,
+			tpan,
+			amp * pow(energy, 0.2),
+			2);
+
+		sig = sig * EnvGen.kr(Env.asr(0.01,1.0,0.1), gate ,doneAction: 2);
+		Out.ar(0, sig);
+
+	}).send(s);
+
+
+});
 
 )
 
@@ -138,6 +161,10 @@ SynthDef(\crawlerTone, {
 
 ////////////////////////////OSC////////////////////////////////
 (
+
+var samplePath = "/Users/kimonsatan/Music/projectSamples/conditionalLove/samples/";
+
+~serverNode = NetAddr("127.0.0.1", 12345); // send data back to node server
 
 ~toneRefs = ();
 ~transRefs = ();
@@ -154,6 +181,18 @@ SynthDef(\crawlerTone, {
 
 ~polyPlayers.free;
 ~polyPlayers = Group.new;
+
+
+~voiceGroup.free;
+~voiceGroup = Group.new;
+
+//set the accents
+~voices = [11,18,19,30,35,38,40,33];
+~voices.do({|voice, count|
+	Speech.setSpeechVoice(count, voice);
+});
+
+~winSample = Buffer.read(s, samplePath ++ "votes/industrial.wav");
 
 
 ////////////////////////////// helper functions ///////////////////////////////
@@ -202,6 +241,53 @@ SynthDef(\crawlerTone, {
 
 };
 
+//function to add phrase
+
+~addphrase = { |phrase|
+
+	var recorder;
+
+	phrase.postln;
+
+	Speech.doneAction_({ |voice|
+		recorder.set(\trigger, 0);
+		~isRecording = false;
+		~serverNode.sendMsg("/phraseComplete", phrase[0], phrase[1], phrase[3]); //call back message
+		("done recording " + phrase).postln;
+	});
+
+
+
+	Buffer.alloc(s, 44100 * 4, 1,
+	{ |buffer|
+		var key = (phrase[0].asString ++ "_" ++ phrase[1].asString ++ "_" ++ phrase[3].asString).asSymbol;
+		~phraseStore.at(key).free; //free the old buffer if it exists
+		~phraseStore.put(key,buffer);
+		recorder = Synth.new(\StoreSpeech, [\buf, buffer]);
+		phrase[2].asString.speak(phrase[3]);
+	});
+
+};
+
+
+~clearPhrases =  {
+
+	if(~phraseStore != nil, {
+		~phraseStore.keys.do(
+			{|key|
+				~phraseStore.at(key).free;
+			}
+		)
+	});
+
+	~phraseStore = ();
+	~phraseQueue = List[];
+	~isRecording = false;
+
+};
+
+~clearPhrases.value();
+
 //////////////////////////////////nodes//////////////////////////////////////////
 
 
@@ -220,6 +306,8 @@ OSCdef(\playStereo, {|msg|
 
 	var dict = ~packageMessage.value(msg),  loop = 0, synth = \simplePlayOnceStereo, para;
 
+
+	msg.postln;
 
 	if(dict.at(\solo).asString == "true", {
 		~polyPlayers.set(\gate, 0);
@@ -424,8 +512,125 @@ OSCdef(\allOff, {|msg|
 	~transSweeps.set(\gate, 0);
 	~crawlerSynths.set(\gate, 0);
 	~polyPlayers.set(\gate, 0);
+	~voiceGroup.set(\gate, 0);
 
 },'/allOff');
+
+OSCdef(\recordPhrases).free;  // unregister OSCdef
+OSCdef(\recordPhrases, {|msg|
+
+	msg.postln;
+
+	//TODO check if phrase is already there....
+
+	~voices.do({|item, count|
+		~phraseQueue.addFirst([msg[1], 0, msg[2].asString, count]);
+		~phraseQueue.addFirst([msg[1], 1, msg[3].asString, count]);
+	});
+
+
+}, '/recordPhrases');
+
+OSCdef(\recordWinPhrase).free;  // unregister OSCdef
+OSCdef(\recordWinPhrase, {|msg|
+
+	msg.postln;
+
+	//TODO check if phrase is already there....
+
+	~phraseQueue.addFirst([msg[1], 0, msg[2].asString, 7]); //voice 7 is currently used as win voice
+	~phraseQueue.addFirst([msg[1], 1, msg[3].asString, 7]);
+
+
+}, '/recordWinPhrase');
+
+OSCdef(\recordJoinPhrases).free;  // unregister OSCdef
+OSCdef(\recordJoinPhrases, {|msg|
+
+	msg.postln;
+
+	//TODO check if phrase is already there....
+
+	~phraseQueue.addFirst([msg[1], 0, msg[2].asString, 7]); //voice 7 is currently used as win voice
+	~phraseQueue.addFirst([msg[1], 1, msg[3].asString, 7]);
+	~phraseQueue.addFirst([msg[1], 2, msg[4].asString, 7]);
+	~phraseQueue.addFirst([msg[1], 3, msg[5].asString, 7]);
+
+
+}, '/recordJoinPhrases');
+
+
+OSCdef(\speakPhrase).free;  // unregister OSCdef
+OSCdef(\speakPhrase, {|msg|
+
+	//TODO add this to a group for voice
+	var key = msg[1].asString ++ "_" ++ msg[2].asString ++ "_" ++ msg[3].asString;
+	x = Synth.head(~voiceGroup, \simplePlayOnceMono, [\bufNum, ~phraseStore[key.asSymbol], \amp, 0.15, \pan, msg[4].asFloat, \rate, msg[5].asFloat]);
+
+},'/speakPhrase');
+
+OSCdef(\resetPhrases).free;  // unregister OSCdef
+OSCdef(\resetPhrases, {|msg|
+
+	"resetall".postln;
+	~clearPhrases.value();
+	~voiceGroup.free;
+	~voiceGroup = Group.new;
+
+},'/resetPhrases');
+
+OSCdef(\voteComplete).free;  // unregister OSCdef
+OSCdef(\voteComplete, {|msg|
+
+	//mute the voice group - play the win music
+
+	//var key = msg[1].asString ++ "_win_" ++ msg[2].asString ++ "_7";
+	var key = msg[1].asString;
+
+	("concluded " + key).postln;
+	~voiceGroup.set(\amp,0.0); //mute any current synths - perhaps better as a bus ?
+	x = Synth(\simplePlayOnceStereo, [\bufNum, ~winSample, \amp, 0.15, \pan, 0, \rate, 1]);
+
+	{
+		(~winSample.numFrames * 0.75/44100).wait;
+		~serverNode.sendMsg("/winSampleDone"); //call back message
+		y = Synth(\simplePlayOnceMono, [\bufNum, ~phraseStore[key.asSymbol], \amp, 0.35, \pan, 0, \rate, 1]);
+		(~phraseStore[key.asSymbol].numFrames/44100).wait;
+		~serverNode.sendMsg("/resumeVote"); //call back message
+	}.fork;
+
+
+},'/voteComplete')
+
+)
+
+
+//////////////////////////////////// Process the record queue //////////////////////////
+
+(
+
+~recordQueue = Routine(
+{
+	loop
+	{
+		if(~phraseQueue.size() > 0,
+		{
+
+			if(~isRecording == false,
+			{
+				var phrase = ~phraseQueue.pop();
+				~isRecording = true;
+				~addphrase.value(phrase);
+			},{
+				//"already recording".postln
+			});
+
+
+		});
+		0.05.wait;
+	}
+
+}).play;
 
 )
 
