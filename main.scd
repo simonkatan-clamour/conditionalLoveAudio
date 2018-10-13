@@ -162,7 +162,7 @@ s.doWhenBooted({
 ////////////////////////////OSC////////////////////////////////
 (
 
-var samplePath = "/Users/kimonsatan/Music/projectSamples/conditionalLove/samples/";
+~samplePath = "/Users/kimonsatan/Music/projectSamples/conditionalLove/samples/";
 
 ~serverNode = NetAddr("127.0.0.1", 12345); // send data back to node server
 
@@ -182,6 +182,9 @@ var samplePath = "/Users/kimonsatan/Music/projectSamples/conditionalLove/samples
 ~polyPlayers.free;
 ~polyPlayers = Group.new;
 
+~polyPlayers1.free;
+~polyPlayers1 = Group.new;
+
 
 ~voiceGroup.free;
 ~voiceGroup = Group.new;
@@ -192,7 +195,7 @@ var samplePath = "/Users/kimonsatan/Music/projectSamples/conditionalLove/samples
 	Speech.setSpeechVoice(count, voice);
 });
 
-~winSample = Buffer.read(s, samplePath ++ "votes/industrial.wav");
+~winSample = Buffer.read(s, ~samplePath ++ "votes/correct.wav");
 
 
 ////////////////////////////// helper functions ///////////////////////////////
@@ -295,7 +298,7 @@ OSCdef(\loadSamples).free;  // unregister OSCdef
 OSCdef(\loadSamples, {|msg|
 
 	msg.postln;
-	~loadSamplesFunc.value(msg[1].asString);
+	~loadSamplesFunc.value(~samplePath);
 
 }, '/loadSamples');
 
@@ -308,15 +311,19 @@ OSCdef(\playStereo, {|msg|
 
 
 	msg.postln;
+	dict.postln;
 
 	if(dict.at(\solo).asString == "true", {
-		~polyPlayers.set(\gate, 0);
+
+		if(dict.at(\channel) == 0, {~polyPlayers.set(\gate, 0);});
+		if(dict.at(\channel) == 1, {~polyPlayers1.set(\gate, 0);})
+
 	});
 	if(dict.at(\loop).asString == "true", {
 		synth = \simplePlayStereo
 	});
 
-	b = ~buf [dict.at(\dir)] .at(dict.at(\file));
+	b = ~buf [dict.at(\dir).asSymbol] .at(dict.at(\file).asSymbol);
 	para =  [
 		\bufNum, b
 	];
@@ -329,8 +336,9 @@ OSCdef(\playStereo, {|msg|
 
 	//para.postln;
 
-	Synth.head(~polyPlayers, synth, para);
-
+	if(dict.at(\channel) == nil, {Synth.head(~polyPlayers, synth, para)});
+	if(dict.at(\channel) == 0, {Synth.head(~polyPlayers, synth, para)});
+	if(dict.at(\channel) == 1, {Synth.head(~polyPlayers1, synth, para)});
 
 }, '/playStereo');
 
@@ -373,7 +381,7 @@ OSCdef(\addTone, {|msg|
 
 	var id, dict = ~packageMessage.value(msg);
 
-	dict.postln;
+	//dict.postln;
 
 	id = ("synth_" + dict.at(\scidx)).asSymbol;
 
@@ -428,7 +436,7 @@ OSCdef(\transTone, {|msg|
 
 	var id, dict = ~packageMessage.value(msg);
 
-	dict.postln;
+	//dict.postln;
 
 	id = ("synth_" + dict.at(\scidx)).asSymbol;
 
@@ -450,7 +458,7 @@ OSCdef(\startCrawler, {|msg|
 
 	var id, buf, sampArray, dict = ~packageMessage.value(msg);
 
-	dict.postln;
+	//dict.postln;
 
 	id = ("synth_" + dict.at(\scidx)).asSymbol;
 
@@ -480,7 +488,7 @@ OSCdef(\updateCrawler, {|msg|
 	var id, amp, rot, dict = ~packageMessage.value(msg);
 	id = ("synth_" + dict.at(\scidx)).asSymbol;
 
-	dict.postln;
+	//dict.postln;
 
 	rot = (abs(dict.at(\rot))%(2 *pi))/(2*pi);
 	//rot.postln;
@@ -512,9 +520,24 @@ OSCdef(\allOff, {|msg|
 	~transSweeps.set(\gate, 0);
 	~crawlerSynths.set(\gate, 0);
 	~polyPlayers.set(\gate, 0);
+	~polyPlayers1.set(\gate, 0);
 	~voiceGroup.set(\gate, 0);
 
+	"allOff".post;
+
 },'/allOff');
+
+OSCdef(\polyOff).free;
+OSCdef(\polyOff, {|msg|
+
+	var dict = ~packageMessage.value(msg);
+
+	if(dict.at(\channel) == 0, {~polyPlayers.set(\gate, 0)});
+	if(dict.at(\channel) == 1, {~polyPlayers1.set(\gate, 0)});
+
+	msg.postln;
+
+},'/polyOff');
 
 OSCdef(\recordPhrases).free;  // unregister OSCdef
 OSCdef(\recordPhrases, {|msg|
@@ -589,13 +612,13 @@ OSCdef(\voteComplete, {|msg|
 
 	("concluded " + key).postln;
 	~voiceGroup.set(\amp,0.0); //mute any current synths - perhaps better as a bus ?
-	x = Synth(\simplePlayOnceStereo, [\bufNum, ~winSample, \amp, 0.15, \pan, 0, \rate, 1]);
+	x = Synth(\simplePlayOnceMono, [\bufNum, ~winSample, \amp, 1.0, \pan, 0, \rate, 1]);
 
 	{
 		(~winSample.numFrames * 0.75/44100).wait;
 		~serverNode.sendMsg("/winSampleDone"); //call back message
 		y = Synth(\simplePlayOnceMono, [\bufNum, ~phraseStore[key.asSymbol], \amp, 0.35, \pan, 0, \rate, 1]);
-		(~phraseStore[key.asSymbol].numFrames/44100).wait;
+		(~phraseStore[key.asSymbol].numFrames * 0.65/44100).wait;
 		~serverNode.sendMsg("/resumeVote"); //call back message
 	}.fork;
 
