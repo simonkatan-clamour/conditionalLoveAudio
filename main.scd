@@ -9,7 +9,7 @@ s.quit;
 //ServerOptions.inDevices.postln;
 o = ServerOptions.new;
 o.outDevice = "Scarlett 2i4 USB";
-//o.outDevice = "Built-in Output";
+//o.outDevice= "Built-in Output";
 o.inDevice = "Soundflower (2ch)";
 s.options = o;
 s.boot;
@@ -185,6 +185,9 @@ s.doWhenBooted({
 ~polyPlayers1.free;
 ~polyPlayers1 = Group.new;
 
+~polyPlayers2.free;
+~polyPlayers2 = Group.new;
+
 
 ~voiceGroup.free;
 ~voiceGroup = Group.new;
@@ -316,7 +319,8 @@ OSCdef(\playStereo, {|msg|
 	if(dict.at(\solo).asString == "true", {
 
 		if(dict.at(\channel) == 0, {~polyPlayers.set(\gate, 0);});
-		if(dict.at(\channel) == 1, {~polyPlayers1.set(\gate, 0);})
+		if(dict.at(\channel) == 1, {~polyPlayers1.set(\gate, 0);});
+		if(dict.at(\channel) == 2, {~polyPlayers2.set(\gate, 0);})
 
 	});
 	if(dict.at(\loop).asString == "true", {
@@ -339,6 +343,7 @@ OSCdef(\playStereo, {|msg|
 	if(dict.at(\channel) == nil, {Synth.head(~polyPlayers, synth, para)});
 	if(dict.at(\channel) == 0, {Synth.head(~polyPlayers, synth, para)});
 	if(dict.at(\channel) == 1, {Synth.head(~polyPlayers1, synth, para)});
+	if(dict.at(\channel) == 2, {Synth.head(~polyPlayers2, synth, para)});
 
 }, '/playStereo');
 
@@ -381,7 +386,9 @@ OSCdef(\addTone, {|msg|
 
 	var id, dict = ~packageMessage.value(msg);
 
-	//dict.postln;
+	dict.postln;
+
+	//TODO - check amps
 
 	id = ("synth_" + dict.at(\scidx)).asSymbol;
 
@@ -406,7 +413,7 @@ OSCdef(\addTone, {|msg|
 OSCdef(\updateTone).free;
 OSCdef(\updateTone, {|msg|
 
-
+	//TODO check amp here
 
 	var amp, id, dict = ~packageMessage.value(msg);
 	id = ("synth_" + dict.at(\scidx)).asSymbol;
@@ -437,6 +444,8 @@ OSCdef(\transTone, {|msg|
 	var id, dict = ~packageMessage.value(msg);
 
 	//dict.postln;
+
+	//TODO add filter for variation
 
 	id = ("synth_" + dict.at(\scidx)).asSymbol;
 
@@ -485,6 +494,8 @@ OSCdef(\updateCrawler).free;
 OSCdef(\updateCrawler, {|msg|
 
 
+	//TODO check amp + add filter
+
 	var id, amp, rot, dict = ~packageMessage.value(msg);
 	id = ("synth_" + dict.at(\scidx)).asSymbol;
 
@@ -506,7 +517,7 @@ OSCdef(\endCrawler, {|msg|
 	var id, dict = ~packageMessage.value(msg);
 	id = ("synth_" + dict.at(\scidx)).asSymbol;
 
-	"end crawler".postln;
+	//"end crawler".postln;
 	~crawlerRefs.at(id).set(\gate, 0);
 
 
@@ -521,6 +532,7 @@ OSCdef(\allOff, {|msg|
 	~crawlerSynths.set(\gate, 0);
 	~polyPlayers.set(\gate, 0);
 	~polyPlayers1.set(\gate, 0);
+	~polyPlayers2.set(\gate, 0);
 	~voiceGroup.set(\gate, 0);
 
 	"allOff".post;
@@ -534,6 +546,7 @@ OSCdef(\polyOff, {|msg|
 
 	if(dict.at(\channel) == 0, {~polyPlayers.set(\gate, 0)});
 	if(dict.at(\channel) == 1, {~polyPlayers1.set(\gate, 0)});
+	if(dict.at(\channel) == 2, {~polyPlayers2.set(\gate, 0)});
 
 	msg.postln;
 
@@ -554,20 +567,19 @@ OSCdef(\recordPhrases, {|msg|
 
 }, '/recordPhrases');
 
-OSCdef(\recordWinPhrase).free;  // unregister OSCdef
-OSCdef(\recordWinPhrase, {|msg|
+OSCdef(\recordCallPhrase).free;  // unregister OSCdef
+OSCdef(\recordCallPhrase, {|msg|
 
 	msg.postln;
 
 	//TODO check if phrase is already there....
 
 	~phraseQueue.addFirst([msg[1], 0, msg[2].asString, 7]); //voice 7 is currently used as win voice
-	~phraseQueue.addFirst([msg[1], 1, msg[3].asString, 7]);
 
 
-}, '/recordWinPhrase');
+}, '/recordCallPhrase');
 
-OSCdef(\recordJoinPhrases).free;  // unregister OSCdef
+/*OSCdef(\recordJoinPhrases).free;  // unregister OSCdef
 OSCdef(\recordJoinPhrases, {|msg|
 
 	msg.postln;
@@ -580,17 +592,21 @@ OSCdef(\recordJoinPhrases, {|msg|
 	~phraseQueue.addFirst([msg[1], 3, msg[5].asString, 7]);
 
 
-}, '/recordJoinPhrases');
+}, '/recordJoinPhrases');*/
 
 
 OSCdef(\speakPhrase).free;  // unregister OSCdef
 OSCdef(\speakPhrase, {|msg|
 
-	//TODO add this to a group for voice
+
+	//TODO add volume control
+
 	var key = msg[1].asString ++ "_" ++ msg[2].asString ++ "_" ++ msg[3].asString;
 	x = Synth.head(~voiceGroup, \simplePlayOnceMono, [\bufNum, ~phraseStore[key.asSymbol], \amp, 0.15, \pan, msg[4].asFloat, \rate, msg[5].asFloat]);
 
 },'/speakPhrase');
+
+//TODO speak win phrase function
 
 OSCdef(\resetPhrases).free;  // unregister OSCdef
 OSCdef(\resetPhrases, {|msg|
@@ -607,6 +623,8 @@ OSCdef(\voteComplete, {|msg|
 
 	//mute the voice group - play the win music
 
+	//TODO add volume control
+
 	//var key = msg[1].asString ++ "_win_" ++ msg[2].asString ++ "_7";
 	var key = msg[1].asString;
 
@@ -615,10 +633,15 @@ OSCdef(\voteComplete, {|msg|
 	x = Synth(\simplePlayOnceMono, [\bufNum, ~winSample, \amp, 1.0, \pan, 0, \rate, 1]);
 
 	{
-		(~winSample.numFrames * 0.75/44100).wait;
+		3.0.wait;
+
+		/*
+		//NOT playing win samples
 		~serverNode.sendMsg("/winSampleDone"); //call back message
 		y = Synth(\simplePlayOnceMono, [\bufNum, ~phraseStore[key.asSymbol], \amp, 0.35, \pan, 0, \rate, 1]);
 		(~phraseStore[key.asSymbol].numFrames * 0.65/44100).wait;
+		*/
+
 		~serverNode.sendMsg("/resumeVote"); //call back message
 	}.fork;
 
@@ -656,5 +679,7 @@ OSCdef(\voteComplete, {|msg|
 }).play;
 
 )
+
+
 
 
