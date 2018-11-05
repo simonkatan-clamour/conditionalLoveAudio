@@ -45,15 +45,16 @@ s.doWhenBooted({
 		Out.ar(outbus, sig);
 	}).send(s);
 
-	SynthDef.new(\splatPlayer, {|bufNum, loop = 0, trig = 1, rate = 1, pos = 0, amp = 1, pan = 0, outbus = 0|
+SynthDef.new(\splatPlayer, {|bufNum, loop = 0, trig = 1, rate = 1, pos = 0, amp = 1, freq = 0, pan = 0, outbus = 0|
 
-		//only difference is a couple of mapping functions
-		var sig, mpos, mrate;
+		var sig, mpos, mrate, mfreq;
 
 		mpos = LinLin.kr(pos, 0, 1, 0, 0.3);
-		mrate = LinExp.kr(pos, 0, 1, 0.4, 1.4);
+		mrate = LinExp.kr(rate, 0, 1, 0.9, 1.5);
+		mfreq = LinLin.kr(rate, 0, 1, -500, 500);
 
 		sig = PlayBuf.ar(1, bufNum, rate: mrate, startPos: mpos * BufFrames.kr(bufNum));
+	sig = FreqShift.ar(sig,mfreq);
 		sig = Pan2.ar(sig ,pan) * amp;
 		sig = sig * EnvGen.kr(Env.linen(0.01,BufDur.kr(bufNum) - 0.02,0.01),trig,doneAction:2);
 		Out.ar(outbus, sig);
@@ -102,15 +103,17 @@ s.doWhenBooted({
 
 	}).send(s);
 
-	SynthDef(\transSweep, {|scidx = 1, pan = 0, gate = 1|
+	SynthDef(\transSweep, {|scidx = 1, pan = 0, gate = 1, amp = 0|
 
 		var sig;
-		sig = WhiteNoise.ar(EnvGen.kr(Env.new([0,1],[4.0],2)));
+		sig =WhiteNoise.ar(EnvGen.kr(Env.new([0,1],[4.0],2))) * amp;
+		sig = HPF.ar(sig, ExpRand(1,2000));
 		sig = Pan2.ar(sig, pan);
 		sig = sig * EnvGen.kr(Env.asr(0.01,1,0.01),gate, doneAction:2);
 		Out.ar(0, sig);
 
 	}).send(s);
+
 
 	SynthDef(\crawlerTone, {
 		|scidx = 0, gate =1, bufNum = 0, pan = 0, amp = 0.5, prange = 0.5, pstart = 0.1,   energy = 0, rot = 0, baseRate = 0.01 |
@@ -188,6 +191,9 @@ s.doWhenBooted({
 ~polyPlayers2.free;
 ~polyPlayers2 = Group.new;
 
+~queuePlayers.free;
+~queuePlayers = Group.new;
+
 
 ~voiceGroup.free;
 ~voiceGroup = Group.new;
@@ -199,6 +205,12 @@ s.doWhenBooted({
 });
 
 ~winSample = Buffer.read(s, ~samplePath ++ "votes/correct.wav");
+
+~isQueueTaskRunning = false;
+~queueTask = nil;
+~queueBuf = nil;
+~queueAmp = 0.5;
+
 
 
 ////////////////////////////// helper functions ///////////////////////////////
@@ -253,7 +265,7 @@ s.doWhenBooted({
 
 	var recorder;
 
-	phrase.postln;
+/*	phrase.postln;*/
 
 	Speech.doneAction_({ |voice|
 		recorder.set(\trigger, 0);
@@ -348,18 +360,73 @@ OSCdef(\playStereo, {|msg|
 }, '/playStereo');
 
 
+OSCdef(\playqueue).free;
+OSCdef(\playqueue, {|msg|
+
+	var dict = ~packageMessage.value(msg);
+
+	~queueBuf = ~buf.at(dict.at(\dir).asSymbol).at(dict.at(\file).asSymbol);
+	~queueAmp = dict.at(\amp);
+
+	if(~isQueueTaskRunning == false,
+	{
+			~queueTask = Task({
+
+				loop
+				{
+					var dur = ~queueBuf.numFrames/44100;
+					Synth.head(~queuePlayers,\simplePlayOnceStereo, [\bufNum, ~queueBuf, \dur, dur, \amp, ~queueAmp]);
+					dur.wait;
+				}
+
+			}).play();
+
+			~isQueueTaskRunning = true;
+
+	});
+
+}, '/playqueue');
+
+
+OSCdef(\endqueue).free;
+OSCdef(\endqueue, {|msg|
+
+	if(~isQueueTaskRunning == true,
+	{
+			~queueTask.stop();
+			~isQueueTaskRunning = false;
+	});
+
+}, '/endqueue');
+
+OSCdef(\cutqueue).free;
+OSCdef(\cutqueue, {|msg|
+
+	if(~isQueueTaskRunning == true,
+	{
+			~queueTask.stop();
+			~isQueueTaskRunning = false;
+	});
+
+	~queuePlayers.set(\gate, 0);
+
+}, '/cutqueue');
+
 OSCdef(\splat).free;  // unregister OSCdef
 OSCdef(\splat, {|msg|
 
 	var dict = ~packageMessage.value(msg);
 
-	b =~buf [\splats].at( '338116_splat1');
+	dict.postln;
+
+	b =~buf [\splats].at( '338116_splat3');
 	x = Synth.new(\splatPlayer,
 			[\bufNum, b ,
 			\pan, dict.at(\pan),
-			\amp , 1.0,
+			\amp , dict.at(\pan),
 			\pos, dict.at(\pos) ,
-			\rate, dict.at(\rate)
+			\rate, dict.at(\rate),
+			\freq, dict.at(\freq)
 	]);
 
 
@@ -388,8 +455,6 @@ OSCdef(\addTone, {|msg|
 
 	dict.postln;
 
-	//TODO - check amps
-
 	id = ("synth_" + dict.at(\scidx)).asSymbol;
 
 	x = Synth.head(~toneSynths, \pedalTone, [
@@ -400,10 +465,9 @@ OSCdef(\addTone, {|msg|
 		\wampF, 0.2,
 		\fFreq, rrand(1000,2000),
 		\pan, dict.at(\pan),
-		\amp, 0.1
+		\amp, 0.0
 
 	]);
-
 
 	~toneRefs.put(id, x);
 
@@ -413,12 +477,9 @@ OSCdef(\addTone, {|msg|
 OSCdef(\updateTone).free;
 OSCdef(\updateTone, {|msg|
 
-	//TODO check amp here
 
 	var amp, id, dict = ~packageMessage.value(msg);
 	id = ("synth_" + dict.at(\scidx)).asSymbol;
-
-
 
 	~toneRefs.at(id).set(\amp, dict.at(\amp).asFloat);
 
@@ -443,7 +504,7 @@ OSCdef(\transTone, {|msg|
 
 	var id, dict = ~packageMessage.value(msg);
 
-	//dict.postln;
+	dict.postln;
 
 	//TODO add filter for variation
 
@@ -451,7 +512,8 @@ OSCdef(\transTone, {|msg|
 
 	x = Synth.head(~transSweeps, \transSweep, [
 		\scidx, dict.at(\scidx),
-		\pan, dict.at(\pan)
+		\pan, dict.at(\pan),
+		\amp, dict.at(\amp)
 	]);
 
 
@@ -494,16 +556,15 @@ OSCdef(\updateCrawler).free;
 OSCdef(\updateCrawler, {|msg|
 
 
-	//TODO check amp + add filter
-
 	var id, amp, rot, dict = ~packageMessage.value(msg);
 	id = ("synth_" + dict.at(\scidx)).asSymbol;
 
-	//dict.postln;
+	dict.postln;
 
 	rot = (abs(dict.at(\rot))%(2 *pi))/(2*pi);
 	//rot.postln;
 	amp = (-10 + (pow(dict.at(\death),2.0) * -60)).dbamp; //fade out
+	amp = amp * dict.at(\mul);
 
 	~crawlerRefs.at(id).set(\energy, dict.at(\energy), \amp,  amp, \rot, rot, \pan, dict.at(\pan), \baseRate, dict.at(\colSeed) );
 
@@ -534,6 +595,13 @@ OSCdef(\allOff, {|msg|
 	~polyPlayers1.set(\gate, 0);
 	~polyPlayers2.set(\gate, 0);
 	~voiceGroup.set(\gate, 0);
+	~queuePlayers.set(\gate, 0);
+
+	if(~isQueueTaskRunning == true,
+	{
+			~queueTask.stop();
+			~isQueueTaskRunning = false;
+	});
 
 	"allOff".post;
 
@@ -599,10 +667,10 @@ OSCdef(\speakPhrase).free;  // unregister OSCdef
 OSCdef(\speakPhrase, {|msg|
 
 
-	//TODO add volume control
+	var dict = ~packageMessage.value(msg);
 
-	var key = msg[1].asString ++ "_" ++ msg[2].asString ++ "_" ++ msg[3].asString;
-	x = Synth.head(~voiceGroup, \simplePlayOnceMono, [\bufNum, ~phraseStore[key.asSymbol], \amp, 0.15, \pan, msg[4].asFloat, \rate, msg[5].asFloat]);
+	var key = dict.at(\id) ++ "_" ++ dict.at(\choice) ++ "_" ++ dict.at(\voice);
+	x = Synth.head(~voiceGroup, \simplePlayOnceMono, [\bufNum, ~phraseStore[key.asSymbol], \amp, dict.at(\amp).asFloat, \pan, dict.at(\pan).asFloat, \rate, dict.at(\rate).asFloat]);
 
 },'/speakPhrase');
 
@@ -623,14 +691,14 @@ OSCdef(\voteComplete, {|msg|
 
 	//mute the voice group - play the win music
 
-	//TODO add volume control
+	var dict = ~packageMessage.value(msg);
 
-	//var key = msg[1].asString ++ "_win_" ++ msg[2].asString ++ "_7";
-	var key = msg[1].asString;
+	var key = dict.at(\id).asString;
 
 	("concluded " + key).postln;
-	~voiceGroup.set(\amp,0.0); //mute any current synths - perhaps better as a bus ?
-	x = Synth(\simplePlayOnceMono, [\bufNum, ~winSample, \amp, 1.0, \pan, 0, \rate, 1]);
+	~voiceGroup.set(\amp,0.0); //mute any current synths
+
+	x = Synth(\simplePlayOnceMono, [\bufNum, ~winSample, \amp, dict.at(\amp), \pan, 0, \rate, 1]);
 
 	{
 		3.0.wait;
@@ -643,6 +711,7 @@ OSCdef(\voteComplete, {|msg|
 		*/
 
 		~serverNode.sendMsg("/resumeVote"); //call back message
+
 	}.fork;
 
 
@@ -679,6 +748,8 @@ OSCdef(\voteComplete, {|msg|
 }).play;
 
 )
+
+
 
 
 
