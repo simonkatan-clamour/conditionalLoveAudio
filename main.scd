@@ -141,10 +141,10 @@ SynthDef.new(\splatPlayer, {|bufNum, loop = 0, trig = 1, rate = 1, pos = 0, amp 
 			pos,
 			dur,
 			tpan,
-			amp * pow(energy, 0.2),
+			0 ,
 			2);
 
-		sig = sig * EnvGen.kr(Env.asr(0.01,1.0,0.1), gate ,doneAction: 2);
+		sig = sig * EnvGen.kr(Env.asr(0.01,1.0,0.1), gate ,doneAction: 2) * amp * energy * 10;
 		Out.ar(0, sig);
 
 	}).send(s);
@@ -231,6 +231,8 @@ SynthDef.new(\splatPlayer, {|bufNum, loop = 0, trig = 1, rate = 1, pos = 0, amp 
 
 	var dp = PathName.new(path);
 
+	"load samples".postln;
+
 	~buf.do{|v|
 		v.do{|samp| samp.free;}
 	};
@@ -239,7 +241,6 @@ SynthDef.new(\splatPlayer, {|bufNum, loop = 0, trig = 1, rate = 1, pos = 0, amp 
 
 	dp.folders.do{|v|
 		var fp = v.allFolders[v.allFolders.size - 1].asSymbol;
-		fp.postln;
 		~buf.put(fp.asSymbol, ());
 
 		v.files.do{|f|
@@ -249,8 +250,6 @@ SynthDef.new(\splatPlayer, {|bufNum, loop = 0, trig = 1, rate = 1, pos = 0, amp 
 			name = name[name.size() -1];
 			name = name.split($.);
 			name = name[0];
-			name.postln;
-			f.postln;
 			b = Buffer.read(s, f.fullPath);
 			~buf.at(fp).put(name.asSymbol, b);
 		}
@@ -312,7 +311,6 @@ SynthDef.new(\splatPlayer, {|bufNum, loop = 0, trig = 1, rate = 1, pos = 0, amp 
 OSCdef(\loadSamples).free;  // unregister OSCdef
 OSCdef(\loadSamples, {|msg|
 
-	msg.postln;
 	~loadSamplesFunc.value(~samplePath);
 
 }, '/loadSamples');
@@ -324,9 +322,6 @@ OSCdef(\playStereo, {|msg|
 
 	var dict = ~packageMessage.value(msg),  loop = 0, synth = \simplePlayOnceStereo, para;
 
-
-	msg.postln;
-	dict.postln;
 
 	if(dict.at(\solo).asString == "true", {
 
@@ -417,7 +412,7 @@ OSCdef(\splat, {|msg|
 
 	var dict = ~packageMessage.value(msg);
 
-	dict.postln;
+	//dict.postln;
 
 	b =~buf [\splats].at( '338116_splat3');
 	x = Synth.new(\splatPlayer,
@@ -504,7 +499,7 @@ OSCdef(\transTone, {|msg|
 
 	var id, dict = ~packageMessage.value(msg);
 
-	dict.postln;
+	//dict.postln;
 
 	//TODO add filter for variation
 
@@ -535,8 +530,7 @@ OSCdef(\startCrawler, {|msg|
 
 	sampArray = [\crane, \catBird, \dino, \magpie];
 
-	buf=~buf[\crawlers].at(sampArray[dict.at(\blobSeed).floor]);
-
+	buf=~buf[\crawlers].at(sampArray[(dict.at(\blobSeed) * sampArray.size()).floor]);
 
 
 	x = Synth.head(~crawlerSynths, \crawlerTone, [
@@ -550,7 +544,9 @@ OSCdef(\startCrawler, {|msg|
 	~crawlerRefs.put(id, x);
 
 
+
 }, '/startCrawler');
+
 
 OSCdef(\updateCrawler).free;
 OSCdef(\updateCrawler, {|msg|
@@ -559,17 +555,17 @@ OSCdef(\updateCrawler, {|msg|
 	var id, amp, rot, dict = ~packageMessage.value(msg);
 	id = ("synth_" + dict.at(\scidx)).asSymbol;
 
-	dict.postln;
-
 	rot = (abs(dict.at(\rot))%(2 *pi))/(2*pi);
 	//rot.postln;
 	amp = (-10 + (pow(dict.at(\death),2.0) * -60)).dbamp; //fade out
 	amp = amp * dict.at(\mul);
 
-	~crawlerRefs.at(id).set(\energy, dict.at(\energy), \amp,  amp, \rot, rot, \pan, dict.at(\pan), \baseRate, dict.at(\colSeed) );
+	~crawlerRefs.at(id).set(\energy, dict.at(\energy), \amp, amp, \rot, rot, \pan, dict.at(\pan), \baseRate, dict.at(\colSeed) );
 
 
 }, '/updateCrawler');
+
+
 
 OSCdef(\endCrawler).free;
 OSCdef(\endCrawler, {|msg|
@@ -603,6 +599,8 @@ OSCdef(\allOff, {|msg|
 			~isQueueTaskRunning = false;
 	});
 
+	~clearPhrases.value();
+
 	"allOff".post;
 
 },'/allOff');
@@ -612,9 +610,17 @@ OSCdef(\polyOff, {|msg|
 
 	var dict = ~packageMessage.value(msg);
 
+	dict.at(\channel).postln;
+
 	if(dict.at(\channel) == 0, {~polyPlayers.set(\gate, 0)});
 	if(dict.at(\channel) == 1, {~polyPlayers1.set(\gate, 0)});
 	if(dict.at(\channel) == 2, {~polyPlayers2.set(\gate, 0)});
+	if(dict.at(\channel) == \all, {
+		"all polys off".postln;
+		~polyPlayers.set(\gate, 0);
+		~polyPlayers1.set(\gate, 0);
+		~polyPlayers2.set(\gate, 0)
+	});
 
 	msg.postln;
 
@@ -748,6 +754,7 @@ OSCdef(\voteComplete, {|msg|
 }).play;
 
 )
+
 
 
 
