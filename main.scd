@@ -754,7 +754,15 @@ OSCdef(\voteComplete, {|msg|
 	}.fork;
 
 
-},'/voteComplete')
+},'/voteComplete');
+
+OSCdef(\playBing).free;
+OSCdef(\playBing, {|msg|
+
+		var dict = ~packageMessage.value(msg);
+		x = Synth(\simplePlayOnceMono, [\bufNum, ~winSample, \amp, dict.at(\amp), \pan, 0, \rate, 1, \outbus, ~master]);
+
+},'/playBing')
 
 )
 
@@ -787,9 +795,6 @@ OSCdef(\voteComplete, {|msg|
 }).play;
 
 )
-
-
-
 
 
 
